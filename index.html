@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS Watch — Missão Lunar</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --blue:#4fc3f7;--blue2:#0288d1;--gold:#ffd54f;--white:#ffffff;
+  --glow:rgba(79,195,247,0.35);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;cursor:none;}
+
+/* ── CANVAS LAYERS ── */
+#bg-canvas{position:fixed;inset:0;z-index:0;}
+#fg-canvas{position:fixed;inset:0;z-index:1;pointer-events:none;}
+
+/* ── CURSOR ── */
+#cursor-ring{position:fixed;width:40px;height:40px;border:1.5px solid var(--blue);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;transition:width .15s,height .15s,border-color .15s;mix-blend-mode:screen;}
+#cursor-dot{position:fixed;width:5px;height:5px;background:var(--blue);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;}
+body.clicking #cursor-ring{width:20px;height:20px;border-color:var(--gold);}
+
+/* ── SCENE ── */
+#scene{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;perspective:1200px;}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;opacity:0;pointer-events:none;transform:translateZ(-120px) scale(0.9);transition:opacity .7s cubic-bezier(.4,0,.2,1),transform .7s cubic-bezier(.4,0,.2,1);}
+.slide.active{opacity:1;pointer-events:auto;transform:translateZ(0) scale(1);}
+.slide.exit{opacity:0;transform:translateZ(200px) scale(1.12);}
+
+/* ── TYPOGRAPHY ── */
+.tag{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--blue);opacity:.8;margin-bottom:.8rem;animation:fadeUp .6s .1s both;}
+h1{font-size:clamp(2.4rem,7vw,4.2rem);font-weight:900;line-height:1.05;margin-bottom:1rem;animation:fadeUp .6s .2s both;}
+h1 .gr{background:linear-gradient(135deg,#fff 20%,var(--blue) 60%,#a78bfa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+h2{font-size:clamp(1.5rem,4vw,2.4rem);font-weight:800;margin-bottom:.8rem;animation:fadeUp .6s .2s both;}
+p.sub{font-size:clamp(1rem,2.5vw,1.2rem);line-height:1.75;color:rgba(255,255,255,.65);max-width:540px;margin-bottom:1.5rem;animation:fadeUp .6s .3s both;}
+.hl{color:var(--blue);font-weight:700;}
+.hl2{color:var(--gold);font-weight:700;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:10px;padding:16px 42px;border-radius:60px;font-size:1.05rem;font-weight:800;border:none;cursor:pointer;letter-spacing:.4px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:fadeUp .6s .45s both;}
+.btn-primary{background:linear-gradient(135deg,var(--blue2),var(--blue));color:#000;}
+.btn-primary:hover{transform:scale(1.06);box-shadow:0 0 50px rgba(79,195,247,.55);}
+.btn-primary:active{transform:scale(.96);}
+.btn-cta{background:linear-gradient(135deg,#fff,#d0eeff);color:#000;font-size:1.15rem;padding:20px 52px;animation:pulse-btn 2s infinite;}
+.btn-cta:hover{transform:scale(1.05);box-shadow:0 0 60px rgba(255,255,255,.4);}
+@keyframes pulse-btn{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.3);}50%{box-shadow:0 0 0 14px rgba(255,255,255,.0);}}
+
+/* ripple */
+.btn .rpl{position:absolute;border-radius:50%;background:rgba(255,255,255,.35);transform:scale(0);animation:rpl .55s linear;}
+@keyframes rpl{to{transform:scale(4);opacity:0;}}
+
+/* ── WATCH 3D ── */
+#watch-wrap{width:clamp(160px,28vw,240px);height:clamp(160px,28vw,240px);margin-bottom:1.4rem;position:relative;animation:watch-float 4s ease-in-out infinite,fadeUp .8s .15s both;filter:drop-shadow(0 0 40px rgba(79,195,247,.6)) drop-shadow(0 0 80px rgba(79,195,247,.25));}
+@keyframes watch-float{0%,100%{transform:translateY(0) rotateX(6deg) rotateY(-8deg);}50%{transform:translateY(-14px) rotateX(-4deg) rotateY(8deg);}}
+#watch-canvas{width:100%;height:100%;}
+
+/* ── SPEC CARDS ── */
+.specs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:500px;width:100%;margin-bottom:1.5rem;animation:fadeUp .6s .3s both;}
+.sc{background:rgba(255,255,255,.04);border:1px solid rgba(79,195,247,.18);border-radius:14px;padding:14px 8px;text-align:center;transition:background .2s,border-color .2s,transform .2s;cursor:default;}
+.sc:hover{background:rgba(79,195,247,.1);border-color:rgba(79,195,247,.5);transform:translateY(-3px);}
+.sc .v{display:block;font-size:1.3rem;font-weight:800;color:var(--blue);}
+.sc .l{font-size:.65rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1px;}
+
+/* ── BENEFITS ── */
+.blist{list-style:none;max-width:480px;width:100%;margin-bottom:1.4rem;animation:fadeUp .6s .3s both;}
+.blist li{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.98rem;color:rgba(255,255,255,.75);text-align:left;}
+.blist li .ico{width:22px;height:22px;border-radius:50%;background:rgba(79,195,247,.15);border:1px solid rgba(79,195,247,.3);display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;margin-top:1px;}
+
+/* ── PRICE BOX ── */
+.price-wrap{animation:fadeUp .6s .25s both;width:100%;max-width:420px;margin-bottom:1.4rem;}
+.price-box{background:rgba(79,195,247,.07);border:1px solid rgba(79,195,247,.3);border-radius:20px;padding:22px 36px;position:relative;overflow:hidden;}
+.price-box::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(79,195,247,.08),transparent);pointer-events:none;}
+.p-old{font-size:.9rem;color:rgba(255,255,255,.35);text-decoration:line-through;}
+.p-new{font-size:2.8rem;font-weight:900;line-height:1;margin:.25rem 0;}
+.p-inst{font-size:.9rem;color:var(--blue);}
+.p-saving{display:inline-block;margin-top:8px;background:rgba(255,213,79,.15);border:1px solid rgba(255,213,79,.4);color:var(--gold);font-size:.78rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.5px;}
+
+/* ── TIMER ── */
+#timer-wrap{display:flex;gap:12px;margin-bottom:1rem;animation:fadeUp .6s .35s both;}
+.tblock{text-align:center;}
+.tnum{display:block;font-size:2rem;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;line-height:1;background:rgba(255,255,255,.07);border:1px solid rgba(79,195,247,.2);border-radius:10px;padding:10px 16px;min-width:64px;}
+.tlbl{font-size:.6rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px;}
+.tsep{font-size:2rem;font-weight:900;align-self:center;color:rgba(79,195,247,.5);padding-bottom:20px;}
+
+/* ── STOCK BAR ── */
+.stock-wrap{width:100%;max-width:380px;margin-bottom:1.2rem;animation:fadeUp .6s .4s both;}
+.stock-label{display:flex;justify-content:space-between;font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:6px;}
+.stock-bar{height:6px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;}
+.stock-fill{height:100%;background:linear-gradient(90deg,var(--blue2),var(--blue));border-radius:6px;animation:stock-shrink 60s linear forwards;}
+@keyframes stock-shrink{from{width:23%;}to{width:8%;}}
+
+/* ── SOCIAL PROOF ── */
+.proof{display:flex;align-items:center;gap:10px;margin-bottom:1rem;animation:fadeUp .6s .5s both;}
+.avatars{display:flex;}
+.av{width:28px;height:28px;border-radius:50%;border:2px solid #000;margin-left:-8px;background:linear-gradient(135deg,#1a6fbd,#4fc3f7);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;}
+.proof-txt{font-size:.82rem;color:rgba(255,255,255,.55);}
+.proof-txt b{color:#fff;}
+
+/* ── STARS RATING ── */
+.stars-row{display:flex;align-items:center;gap:6px;margin-bottom:.5rem;animation:fadeUp .6s .2s both;}
+.star{color:var(--gold);font-size:1.1rem;}
+.rating-txt{font-size:.85rem;color:rgba(255,255,255,.5);}
+
+/* ── GUARANTEES ── */
+.guar{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:1.2rem;animation:fadeUp .6s .55s both;}
+.g{display:flex;align-items:center;gap:6px;font-size:.78rem;color:rgba(255,255,255,.5);}
+
+/* ── PROBLEM ITEMS ── */
+.prob-list{list-style:none;max-width:480px;width:100%;margin-bottom:1.4rem;animation:fadeUp .6s .3s both;}
+.prob-list li{display:flex;align-items:center;gap:12px;padding:11px 16px;margin-bottom:8px;border-radius:12px;font-size:.95rem;text-align:left;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);}
+.prob-list li .e{font-size:1.1rem;flex-shrink:0;}
+
+/* ── HUD OVERLAY ── */
+#hud{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.8rem;pointer-events:none;}
+.hud-logo{font-size:1rem;font-weight:900;letter-spacing:4px;color:rgba(255,255,255,.5);}
+.hud-step{font-size:.72rem;letter-spacing:2px;color:rgba(79,195,247,.6);}
+#hud-speed{font-size:.7rem;letter-spacing:1.5px;color:rgba(79,195,247,.4);font-variant-numeric:tabular-nums;}
+
+/* ── PROGRESS ── */
+#progress{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:20;}
+.dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.18);transition:all .4s;}
+.dot.on{background:var(--blue);transform:scale(1.6);}
+
+/* ── FLASH ── */
+#flash{position:fixed;inset:0;z-index:30;background:radial-gradient(ellipse at center,rgba(79,195,247,.3) 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .12s;}
+#flash.show{opacity:1;}
+
+/* ── PARTICLES CANVAS ── */
+#particle-canvas{position:fixed;inset:0;z-index:8;pointer-events:none;}
+
+/* ── GLITCH SLIDE 0 ── */
+.glitch{position:relative;}
+.glitch::before,.glitch::after{content:attr(data-text);position:absolute;inset:0;background:transparent;}
+.glitch::before{color:var(--blue);clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%);transform:translate(-3px,0);animation:g1 3s infinite;}
+.glitch::after{color:#ff6b9d;clip-path:polygon(0 55%,100% 55%,100% 70%,0 70%);transform:translate(3px,0);animation:g2 3s infinite;}
+@keyframes g1{0%,95%,100%{transform:translate(-3px,0) scaleX(1);}96%{transform:translate(3px,0) scaleX(1.02);}}
+@keyframes g2{0%,93%,100%{transform:translate(3px,0);}94%{transform:translate(-4px,2px);}}
+
+/* ── HEARTBEAT ── */
+#heartbeat{width:100%;max-width:380px;height:60px;margin-bottom:1rem;animation:fadeUp .6s .35s both;}
+
+/* ── ORBIT RING DECO ── */
+.orbit-deco{position:absolute;border-radius:50%;border:1px solid rgba(79,195,247,.08);pointer-events:none;}
+</style>
+</head>
+<body>
+
+<div id="cursor-ring"></div>
+<div id="cursor-dot"></div>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="particle-canvas"></canvas>
+<canvas id="fg-canvas"></canvas>
+
+<div id="flash"></div>
+
+<div id="hud">
+  <div class="hud-logo">NEXUS</div>
+  <div id="hud-speed">VELOCIDADE WARP: <span id="warp-val">0.0</span>c</div>
+  <div class="hud-step" id="step-counter">01 / 07</div>
+</div>
+
+<div id="scene">
+
+  <!-- S0: Abertura -->
+  <div class="slide active" id="s0">
+    <div class="orbit-deco" style="width:500px;height:500px;top:50%;left:50%;transform:translate(-50%,-50%);animation:spin 30s linear infinite;"></div>
+    <div class="orbit-deco" style="width:350px;height:350px;top:50%;left:50%;transform:translate(-50%,-50%);animation:spin 20s linear infinite reverse;"></div>
+    <div class="tag">MISSÃO NEXUS · 2025</div>
+    <h1><span class="gr glitch" data-text="O Futuro">O Futuro</span><br>no seu pulso</h1>
+    <p class="sub">Uma jornada pelo cosmos te espera. <br>Cada clique revela o que há de mais avançado em smartwatch.</p>
+    <button class="btn btn-primary" onclick="next(this)">
+      <span>🚀</span><span>Iniciar Missão</span>
+    </button>
+    <style>@keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}</style>
+  </div>
+
+  <!-- S1: Problema -->
+  <div class="slide" id="s1">
+    <div class="tag">A REALIDADE</div>
+    <h2>Você está <span class="hl">perdendo</span><br>a corrida todos os dias</h2>
+    <ul class="prob-list">
+      <li><span class="e">😴</span> Acorda cansado sem saber o porquê — sua recuperação é invisível</li>
+      <li><span class="e">📱</span> Perde reuniões e notificações porque o celular estava longe</li>
+      <li><span class="e">📉</span> Sua saúde se deteriora em silêncio — sem dados, sem controle</li>
+      <li><span class="e">⏱️</span> Treina sem orientação e não evolui como deveria</li>
+      <li><span class="e">🧠</span> Estresse acumulado que você só percebe quando já é tarde</li>
+    </ul>
+    <button class="btn btn-primary" onclick="next(this)">Existe uma solução →</button>
+  </div>
+
+  <!-- S2: Produto -->
+  <div class="slide" id="s2">
+    <div class="tag">APRESENTANDO</div>
+    <div id="watch-wrap">
+      <canvas id="watch-canvas" width="480" height="480"></canvas>
+    </div>
+    <div class="stars-row">
+      <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+      <span class="rating-txt">4.97 · 12.847 avaliações</span>
+    </div>
+    <h2>NEXUS Watch <span class="hl">Pro</span></h2>
+    <p class="sub" style="margin-bottom:.8rem;">Design aeroespacial. Tecnologia de astronauta. <span class="hl">Feito para você dominar o tempo.</span></p>
+    <button class="btn btn-primary" onclick="next(this)">Ver a tecnologia →</button>
+  </div>
+
+  <!-- S3: Specs -->
+  <div class="slide" id="s3">
+    <div class="tag">TECNOLOGIA</div>
+    <h2>Especificações que <span class="hl">dominam</span></h2>
+    <div class="specs">
+      <div class="sc" onclick="specPop(this,'7 dias de bateria real, mesmo com GPS ligado.')"><span class="v">7 dias</span><span class="l">Bateria</span></div>
+      <div class="sc" onclick="specPop(this,'Certificação 5ATM — nada te para.')"><span class="v">50m</span><span class="l">À prova d\'água</span></div>
+      <div class="sc" onclick="specPop(this,'GPS + GLONASS para precisão máxima.')"><span class="v">GPS</span><span class="l">Integrado</span></div>
+      <div class="sc" onclick="specPop(this,'Monitor cardíaco óptico de alta precisão 24/7.')"><span class="v">24/7</span><span class="l">Cardíaco</span></div>
+      <div class="sc" onclick="specPop(this,'Medição contínua de oxigenação sanguínea.')"><span class="v">SpO₂</span><span class="l">Oximetria</span></div>
+      <div class="sc" onclick="specPop(this,'Tela AMOLED Always-On com 1000 nits.')"><span class="v">AMOLED</span><span class="l">Display</span></div>
+      <div class="sc" onclick="specPop(this,'IA embarcada aprende seus padrões únicos.')"><span class="v">IA</span><span class="l">Embarcada</span></div>
+      <div class="sc" onclick="specPop(this,'Pagamentos via NFC em qualquer maquininha.')"><span class="v">NFC</span><span class="l">Pagamentos</span></div>
+      <div class="sc" onclick="specPop(this,'Microfone e alto-falante integrados.')"><span class="v">Calls</span><span class="l">Ligações</span></div>
+    </div>
+    <p class="sub" style="font-size:.85rem;margin-bottom:.8rem;color:rgba(255,255,255,.4);">Toque em cada card para saber mais</p>
+    <button class="btn btn-primary" onclick="next(this)">O que isso muda na prática →</button>
+  </div>
+
+  <!-- S4: Benefícios + Heartbeat -->
+  <div class="slide" id="s4">
+    <div class="tag">TRANSFORMAÇÃO</div>
+    <h2>Sua vida, <span class="hl">em órbita</span></h2>
+    <canvas id="heartbeat" height="60"></canvas>
+    <ul class="blist">
+      <li><div class="ico">🧬</div>Receba alertas de saúde antes de sentir qualquer sintoma</li>
+      <li><div class="ico">🏃</div>Treinos adaptativos que evoluem com você automaticamente</li>
+      <li><div class="ico">🔔</div>Zero notificação perdida — veja tudo no pulso em 0,3s</li>
+      <li><div class="ico">💤</div>Otimize seu sono com análise de fases REM em tempo real</li>
+      <li><div class="ico">🧘</div>Guia de respiração e meditação ativa contra o estresse</li>
+    </ul>
+    <button class="btn btn-primary" onclick="next(this)">Quero esse controle →</button>
+  </div>
+
+  <!-- S5: Depoimentos -->
+  <div class="slide" id="s5">
+    <div class="tag">QUEM JÁ CHEGOU LÁ</div>
+    <h2>Resultados <span class="hl">reais</span></h2>
+    <div id="testimonials" style="width:100%;max-width:520px;margin-bottom:1.2rem;animation:fadeUp .6s .2s both;">
+      <div class="tcard active-t" id="t0" style="background:rgba(255,255,255,.04);border:1px solid rgba(79,195,247,.15);border-radius:18px;padding:20px 24px;text-align:left;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1a6fbd,#4fc3f7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;">RM</div>
+          <div><div style="font-weight:700;font-size:.95rem;">Rafael Mendes</div><div style="font-size:.75rem;color:rgba(255,255,255,.4);">CEO · São Paulo</div></div>
+          <div style="margin-left:auto;color:var(--gold);font-size:.9rem;">★★★★★</div>
+        </div>
+        <p style="font-size:.9rem;color:rgba(255,255,255,.7);line-height:1.6;margin:0;">"Detectou minha frequência cardíaca elevada durante o estresse de uma reunião. Me alertou. Fui ao médico e evitei um problema sério. <b style="color:#fff;">Este relógio salvou minha vida."</b></p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(79,195,247,.1);border-radius:14px;padding:16px;">
+          <div style="color:var(--gold);font-size:.8rem;margin-bottom:6px;">★★★★★</div>
+          <p style="font-size:.82rem;color:rgba(255,255,255,.65);margin:0;line-height:1.5;">"Perdi 8kg em 2 meses seguindo os treinos do NEXUS. <b style="color:#fff;">Nunca fui tão consistente."</b>"</p>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:8px;">Ana Lima · Nutricionista</div>
+        </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(79,195,247,.1);border-radius:14px;padding:16px;">
+          <div style="color:var(--gold);font-size:.8rem;margin-bottom:6px;">★★★★★</div>
+          <p style="font-size:.82rem;color:rgba(255,255,255,.65);margin:0;line-height:1.5;">"Minha produtividade explodiu. <b style="color:#fff;">Nunca mais perco uma mensagem importante."</b>"</p>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:8px;">Pedro Costa · Dev</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="next(this)">Ver a oferta final 🔥</button>
+  </div>
+
+  <!-- S6: Oferta -->
+  <div class="slide" id="s6">
+    <div class="tag" style="animation:blink 1s infinite;">⚡ OFERTA ENCERRA EM</div>
+    <div id="timer-wrap">
+      <div class="tblock"><span class="tnum" id="t-h">01</span><div class="tlbl">horas</div></div>
+      <div class="tsep">:</div>
+      <div class="tblock"><span class="tnum" id="t-m">47</span><div class="tlbl">min</div></div>
+      <div class="tsep">:</div>
+      <div class="tblock"><span class="tnum" id="t-s">23</span><div class="tlbl">seg</div></div>
+    </div>
+    <div class="price-wrap">
+      <div class="price-box">
+        <div class="p-old">De R$ 1.297,00</div>
+        <div class="p-new" id="price-display">R$ <span id="p-val">497</span><small style="font-size:1rem;font-weight:400;color:rgba(255,255,255,.5)">,00</small></div>
+        <div class="p-inst">ou 12× de R$ 46,99 <b>sem juros</b></div>
+        <div class="p-saving">🎯 ECONOMIZE R$ 800,00 HOJE</div>
+      </div>
+    </div>
+    <div class="stock-wrap">
+      <div class="stock-label"><span>⚠️ Estoque crítico</span><span id="stock-num">23 unidades restantes</span></div>
+      <div class="stock-bar"><div class="stock-fill" id="sfill"></div></div>
+    </div>
+    <div class="proof">
+      <div class="avatars">
+        <div class="av">RM</div><div class="av" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);">AL</div>
+        <div class="av" style="background:linear-gradient(135deg,#059669,#34d399);">PC</div>
+        <div class="av" style="background:linear-gradient(135deg,#b45309,#fbbf24);">JF</div>
+        <div class="av" style="background:linear-gradient(135deg,#be123c,#fb7185);">MS</div>
+      </div>
+      <div class="proof-txt"><b>847 pessoas</b> estão visualizando agora</div>
+    </div>
+    <button class="btn btn-cta" id="cta-btn" onclick="comprar(this)">
+      🌕 Quero meu NEXUS Watch
+    </button>
+    <div class="guar">
+      <div class="g">🛡️ 30 dias garantia</div>
+      <div class="g">🚚 Frete grátis</div>
+      <div class="g">📦 Entrega 3 dias</div>
+      <div class="g">🔒 Compra segura</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="progress" id="progress"></div>
+
+<!-- TOOLTIP -->
+<div id="tooltip" style="position:fixed;z-index:50;background:rgba(15,25,45,.97);border:1px solid rgba(79,195,247,.4);border-radius:12px;padding:12px 18px;font-size:.85rem;color:rgba(255,255,255,.85);max-width:260px;pointer-events:none;opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s;box-shadow:0 0 30px rgba(79,195,247,.2);">
+  <span id="tooltip-txt"></span>
+</div>
+
+<style>
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
+</style>
+
+<script>
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+const TOTAL = 7;
+let current = 0, animating = false;
+let boostVal = 0, warpSpeed = 0;
+let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
+let mx = mouseX, my = mouseY; // smooth
+let time = 0;
+
+// ──────────────────────────────────────────────
+// BG CANVAS — Deep Space Tunnel
+// ──────────────────────────────────────────────
+const bgC = document.getElementById('bg-canvas');
+const bgX = bgC.getContext('2d');
+let W, H, cx, cy;
+
+function resize(){
+  W = bgC.width = window.innerWidth;
+  H = bgC.height = window.innerHeight;
+  cx = W/2; cy = H/2;
+  initStars();
+}
+
+// Stars
+const stars = [];
+function initStars(){
+  stars.length = 0;
+  const N = Math.min(Math.floor(W*H/3000), 500);
+  for(let i=0;i<N;i++) addStar();
+}
+function addStar(){
+  const angle = Math.random()*Math.PI*2;
+  const d = 30 + Math.random()*Math.max(W,H)*.8;
+  const r = Math.random();
+  stars.push({
+    angle, d,
+    size: Math.random()*.8 + .2,
+    op: Math.random()*.7 + .15,
+    speed: .15 + Math.random()*.9,
+    twinkle: Math.random()*Math.PI*2,
+    twinkleSpeed: .02 + Math.random()*.04,
+    color: r>.9?'#a8d4ff':r>.75?'#ffd4a8':'#ffffff'
+  });
+}
+
+// Tunnel rings
+const rings = [];
+for(let i=0;i<20;i++) rings.push({z:(i/20), twist:Math.random()*Math.PI*2});
+
+// Nebula blobs
+const nebulas = [
+  {x:.3,y:.35,r:.28,c:'rgba(79,100,255,'},
+  {x:.7,y:.65,r:.22,c:'rgba(120,0,200,'},
+  {x:.5,y:.5,r:.35,c:'rgba(0,60,120,'},
+  {x:.2,y:.7,r:.2,c:'rgba(200,50,100,'},
+];
+
+function drawBG(){
+  bgX.clearRect(0,0,W,H);
+
+  // Void
+  bgX.fillStyle='#00000a';
+  bgX.fillRect(0,0,W,H);
+
+  // Nebula clouds
+  nebulas.forEach(n=>{
+    const gx = cx + (n.x-.5)*W*.4 + Math.sin(time*.0003+n.x)*30;
+    const gy = cy + (n.y-.5)*H*.4 + Math.cos(time*.0003+n.y)*20;
+    const rad = Math.min(W,H)*n.r;
+    const g = bgX.createRadialGradient(gx,gy,0,gx,gy,rad);
+    const op = .04 + warpSpeed*.08;
+    g.addColorStop(0,n.c+op+')');
+    g.addColorStop(.6,n.c+(op*.3)+')');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    bgX.fillStyle=g;
+    bgX.fillRect(0,0,W,H);
+  });
+
+  // Tunnel rings
+  const sp = warpSpeed;
+  rings.forEach((r,i)=>{
+    r.z += .003 + sp*.06;
+    r.twist += .002 + sp*.02;
+    if(r.z>1){r.z-=1; r.twist=Math.random()*Math.PI*2;}
+    const progress = r.z;
+    const ease = Math.pow(progress,1.5);
+    const radius = ease * Math.min(W,H) * .7;
+    const opacity = Math.sin(progress*Math.PI) * (.18 + sp*.25);
+    if(opacity<.01) return;
+
+    const hue = 195 + progress*40 + Math.sin(time*.001)*20;
+    const sat = 60 + progress*20;
+
+    // Segmented arc (realistic tunnel hexagon-ish)
+    const segs = 6 + Math.floor(progress*4);
+    for(let j=0;j<segs;j++){
+      const a1=(j/segs)*Math.PI*2 + r.twist;
+      const a2=((j+.72)/segs)*Math.PI*2 + r.twist;
+      bgX.beginPath();
+      bgX.arc(cx,cy,radius,a1,a2);
+      bgX.strokeStyle=`hsla(${hue},${sat}%,70%,${opacity})`;
+      bgX.lineWidth = .5 + progress*2.5;
+      bgX.stroke();
+    }
+    // Inner ring
+    if(progress>.2){
+      bgX.beginPath();
+      bgX.arc(cx,cy,radius*.6,0,Math.PI*2);
+      bgX.strokeStyle=`hsla(${hue},${sat}%,80%,${opacity*.3})`;
+      bgX.lineWidth=.5;
+      bgX.stroke();
+    }
+  });
+
+  // Stars
+  stars.forEach(s=>{
+    s.twinkle+=s.twinkleSpeed;
+    const twink = .7 + Math.sin(s.twinkle)*.3;
+    const streakLen = sp * s.speed * 80;
+    const x = cx + Math.cos(s.angle)*s.d;
+    const y = cy + Math.sin(s.angle)*s.d;
+
+    if(sp>.04){
+      const x2 = cx + Math.cos(s.angle)*(s.d-streakLen);
+      const y2 = cy + Math.sin(s.angle)*(s.d-streakLen);
+      const lg = bgX.createLinearGradient(x2,y2,x,y);
+      lg.addColorStop(0,'rgba(255,255,255,0)');
+      lg.addColorStop(1,`rgba(180,220,255,${s.op*Math.min(sp*2.5,1)})`);
+      bgX.beginPath();
+      bgX.moveTo(x2,y2);
+      bgX.lineTo(x,y);
+      bgX.strokeStyle=lg;
+      bgX.lineWidth=s.size*(1+sp*3);
+      bgX.stroke();
+    }
+
+    const sz = s.size*(1+sp*.5)*twink;
+    bgX.beginPath();
+    bgX.arc(x,y,sz,0,Math.PI*2);
+    bgX.fillStyle=s.color.replace(')',`,${s.op*twink})`).replace('#','rgba(') || `rgba(255,255,255,${s.op*twink})`;
+    // simple fill
+    bgX.fillStyle=`rgba(255,255,255,${s.op*twink})`;
+    bgX.fill();
+
+    // Star cross for bright ones
+    if(s.size>.7 && sp<.2){
+      bgX.strokeStyle=`rgba(255,255,255,${s.op*.2})`;
+      bgX.lineWidth=.5;
+      bgX.beginPath(); bgX.moveTo(x-sz*3,y); bgX.lineTo(x+sz*3,y); bgX.stroke();
+      bgX.beginPath(); bgX.moveTo(x,y-sz*3); bgX.lineTo(x,y+sz*3); bgX.stroke();
+    }
+
+    s.d -= s.speed*(1+sp*25);
+    if(s.d<8){ s.d=30+Math.random()*Math.max(W,H)*.8; s.angle=Math.random()*Math.PI*2; }
+  });
+
+  // Vortex core
+  if(sp>.05){
+    const vr = Math.min(W,H)*(.05+sp*.15);
+    const vg = bgX.createRadialGradient(cx,cy,0,cx,cy,vr);
+    vg.addColorStop(0,`rgba(79,195,247,${sp*.4})`);
+    vg.addColorStop(.5,`rgba(40,100,200,${sp*.15})`);
+    vg.addColorStop(1,'rgba(0,0,0,0)');
+    bgX.fillStyle=vg;
+    bgX.fillRect(0,0,W,H);
+  }
+
+  // Subtle lens flare at center
+  const lfg = bgX.createRadialGradient(cx,cy,0,cx,cy,Math.min(W,H)*.05);
+  lfg.addColorStop(0,'rgba(255,255,255,.08)');
+  lfg.addColorStop(1,'rgba(255,255,255,0)');
+  bgX.fillStyle=lfg;
+  bgX.fillRect(0,0,W,H);
+}
+
+// ──────────────────────────────────────────────
+// PARTICLE CANVAS — Dopamine bursts
+// ──────────────────────────────────────────────
+const pC = document.getElementById('particle-canvas');
+const pX = pC.getContext('2d');
+const particles = [];
+
+function resizeP(){pC.width=window.innerWidth;pC.height=window.innerHeight;}
+resizeP();
+window.addEventListener('resize',resizeP);
+
+function burst(x,y,count=40,colors=['#4fc3f7','#ffd54f','#fff','#a78bfa']){
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=2+Math.random()*7;
+    particles.push({
+      x,y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed - Math.random()*4,
+      r:Math.random()*3+1,
+      life:1,
+      decay:.012+Math.random()*.025,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      gravity:.12
+    });
+  }
+}
+
+function drawParticles(){
+  pX.clearRect(0,0,pC.width,pC.height);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=p.gravity;
+    p.vx*=.98; p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    pX.save();
+    pX.globalAlpha=p.life;
+    pX.beginPath();
+    pX.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    pX.fillStyle=p.color;
+    pX.fill();
+    pX.restore();
+  }
+}
+
+// ──────────────────────────────────────────────
+// WATCH CANVAS — 3D Realistic Watch
+// ──────────────────────────────────────────────
+function drawWatch(){
+  const wc = document.getElementById('watch-canvas');
+  if(!wc) return;
+  const wx = wc.getContext('2d');
+  const W2=480, H2=480, cx2=240, cy2=240;
+  wx.clearRect(0,0,W2,H2);
+
+  const t = time*.001;
+
+  // Watch case shadow
+  wx.save();
+  wx.shadowColor='rgba(79,195,247,0.5)';
+  wx.shadowBlur=40;
+
+  // Band top
+  const bandGrd = wx.createLinearGradient(180,0,300,0);
+  bandGrd.addColorStop(0,'#0d1520'); bandGrd.addColorStop(.5,'#1a2535'); bandGrd.addColorStop(1,'#0d1520');
+  wx.fillStyle=bandGrd;
+  wx.beginPath(); wx.roundRect(188,0,104,88,8); wx.fill();
+  // Band bottom
+  wx.beginPath(); wx.roundRect(188,392,104,88,8); wx.fill();
+
+  // Case outer
+  const caseGrd = wx.createLinearGradient(120,120,360,360);
+  caseGrd.addColorStop(0,'#1e3050'); caseGrd.addColorStop(.4,'#0e1f38'); caseGrd.addColorStop(.8,'#162840'); caseGrd.addColorStop(1,'#0a1525');
+  wx.fillStyle=caseGrd;
+  wx.beginPath(); wx.roundRect(108,84,264,312,52); wx.fill();
+
+  // Case edge highlight
+  const edgeGrd = wx.createLinearGradient(108,84,372,396);
+  edgeGrd.addColorStop(0,'rgba(79,195,247,0.5)');
+  edgeGrd.addColorStop(.5,'rgba(79,195,247,0.1)');
+  edgeGrd.addColorStop(1,'rgba(79,195,247,0.05)');
+  wx.strokeStyle=edgeGrd; wx.lineWidth=2;
+  wx.beginPath(); wx.roundRect(108,84,264,312,52); wx.stroke();
+
+  // Screen bezel
+  wx.fillStyle='#050d18';
+  wx.beginPath(); wx.roundRect(120,96,240,288,44); wx.fill();
+
+  // Screen glow
+  const screenGrd = wx.createRadialGradient(cx2,cy2,0,cx2,cy2,130);
+  screenGrd.addColorStop(0,'rgba(5,20,45,1)');
+  screenGrd.addColorStop(.7,'rgba(3,12,28,1)');
+  screenGrd.addColorStop(1,'rgba(2,8,18,1)');
+  wx.fillStyle=screenGrd;
+  wx.beginPath(); wx.roundRect(124,100,232,280,40); wx.fill();
+
+  // Screen reflection shimmer
+  wx.save();
+  wx.beginPath(); wx.roundRect(124,100,232,280,40); wx.clip();
+  const shimGrd = wx.createLinearGradient(124,100,356,260);
+  shimGrd.addColorStop(0,'rgba(255,255,255,0.04)');
+  shimGrd.addColorStop(.4,'rgba(255,255,255,0.01)');
+  shimGrd.addColorStop(1,'rgba(255,255,255,0)');
+  wx.fillStyle=shimGrd; wx.fillRect(124,100,232,280);
+  wx.restore();
+
+  // Screen content
+  wx.save();
+  wx.beginPath(); wx.roundRect(124,100,232,280,40); wx.clip();
+
+  // Background
+  wx.fillStyle='#030c1a'; wx.fillRect(124,100,232,280);
+
+  // Animated ring background
+  wx.save();
+  wx.translate(cx2,cy2);
+  for(let r=90;r>=20;r-=12){
+    wx.beginPath(); wx.arc(0,0,r,0,Math.PI*2);
+    wx.strokeStyle=`rgba(79,195,247,${.03+.01*(90-r)/70})`;
+    wx.lineWidth=.5; wx.stroke();
+  }
+  wx.restore();
+
+  // Time - digital
+  const now=new Date();
+  const hh=String(now.getHours()).padStart(2,'0');
+  const mm=String(now.getMinutes()).padStart(2,'0');
+  const ss=String(now.getSeconds()).padStart(2,'0');
+
+  wx.font='bold 56px monospace';
+  wx.fillStyle='#ffffff';
+  wx.textAlign='center';
+  wx.textBaseline='middle';
+
+  // Time glow
+  wx.save();
+  wx.shadowColor='rgba(79,195,247,0.6)';
+  wx.shadowBlur=16;
+  wx.fillText(`${hh}:${mm}`,cx2,cy2-20);
+  wx.restore();
+
+  wx.font='14px monospace';
+  wx.fillStyle='rgba(255,255,255,0.35)';
+  wx.fillText(ss,cx2,cy2+22);
+
+  // BPM display
+  const bpm = 68 + Math.floor(Math.sin(t*2)*4);
+  wx.font='bold 11px monospace';
+  wx.fillStyle='rgba(255,100,120,0.9)';
+  wx.textAlign='left';
+  wx.fillText(`♥ ${bpm} BPM`,140,cy2+60);
+
+  // SpO2
+  wx.fillStyle='rgba(79,195,247,0.8)';
+  wx.textAlign='right';
+  wx.fillText(`SpO₂ 98%`,340,cy2+60);
+
+  // Steps bar
+  const steps=8472;
+  wx.fillStyle='rgba(255,255,255,0.15)';
+  wx.beginPath(); wx.roundRect(140,cy2+80,200,5,3); wx.fill();
+  wx.fillStyle='rgba(79,195,247,0.7)';
+  wx.beginPath(); wx.roundRect(140,cy2+80,200*(steps/10000),5,3); wx.fill();
+  wx.font='10px monospace';
+  wx.fillStyle='rgba(255,255,255,0.4)';
+  wx.textAlign='center';
+  wx.fillText(`${steps.toLocaleString()} passos`,cx2,cy2+100);
+
+  wx.restore();
+
+  // Crown button
+  const crownGrd = wx.createLinearGradient(372,200,390,200);
+  crownGrd.addColorStop(0,'#1e3050'); crownGrd.addColorStop(.5,'#2a4570'); crownGrd.addColorStop(1,'#0e1f38');
+  wx.fillStyle=crownGrd;
+  wx.beginPath(); wx.roundRect(370,198,20,44,6); wx.fill();
+  wx.strokeStyle='rgba(79,195,247,0.3)'; wx.lineWidth=1;
+  wx.beginPath(); wx.roundRect(370,198,20,44,6); wx.stroke();
+
+  wx.restore();
+}
+
+// ──────────────────────────────────────────────
+// HEARTBEAT CANVAS
+// ──────────────────────────────────────────────
+let hbPhase=0;
+function drawHeartbeat(){
+  const hb=document.getElementById('heartbeat');
+  if(!hb) return;
+  const hx=hb.getContext('2d');
+  const W2=hb.offsetWidth||380, H2=60;
+  hb.width=W2; hb.height=H2;
+  hx.clearRect(0,0,W2,H2);
+
+  hbPhase+=1.5;
+  const pts=[];
+  for(let x=0;x<W2;x++){
+    const phase=(x/W2)*Math.PI*6+hbPhase*.05;
+    let y=H2/2;
+    const pulse=(x/W2*100)%100;
+    if(pulse>40&&pulse<60){
+      const p=(pulse-40)/20;
+      if(p<.2) y=H2/2 - p/.2*H2*.6;
+      else if(p<.35) y=H2/2 - (1-(p-.2)/.15)*H2*.6 + H2*.9*(p-.2)/.15;
+      else if(p<.45) y=H2*.95 - (p-.35)/.1*H2*.45;
+      else if(p<.6) y=H2/2 - (1-(p-.45)/.15)*H2*.15;
+      else y=H2/2+Math.sin(phase)*.5;
+    } else {
+      y=H2/2+Math.sin(phase)*1.5;
+    }
+    pts.push({x,y});
+  }
+
+  const lg=hx.createLinearGradient(0,0,W2,0);
+  lg.addColorStop(0,'rgba(79,195,247,0)');
+  lg.addColorStop(.3,'rgba(79,195,247,0.8)');
+  lg.addColorStop(.7,'rgba(79,195,247,0.8)');
+  lg.addColorStop(1,'rgba(79,195,247,0)');
+  hx.strokeStyle=lg; hx.lineWidth=2;
+  hx.beginPath();
+  pts.forEach((p,i)=>i===0?hx.moveTo(p.x,p.y):hx.lineTo(p.x,p.y));
+  hx.stroke();
+
+  // Glow
+  hx.save();
+  hx.filter='blur(4px)';
+  hx.strokeStyle='rgba(79,195,247,0.3)'; hx.lineWidth=4;
+  hx.beginPath();
+  pts.forEach((p,i)=>i===0?hx.moveTo(p.x,p.y):hx.lineTo(p.x,p.y));
+  hx.stroke();
+  hx.restore();
+}
+
+// ──────────────────────────────────────────────
+// AUDIO — Web Audio synth
+// ──────────────────────────────────────────────
+let audioCtx;
+function ensureAudio(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+}
+function playWarp(){
+  try{
+    ensureAudio();
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(80,audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400,audioCtx.currentTime+.3);
+    osc.frequency.exponentialRampToValueAtTime(200,audioCtx.currentTime+.6);
+    gain.gain.setValueAtTime(.18,audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.7);
+    osc.start(); osc.stop(audioCtx.currentTime+.7);
+  }catch(e){}
+}
+function playClick(){
+  try{
+    ensureAudio();
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc.type='sine';
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(600,audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900,audioCtx.currentTime+.08);
+    gain.gain.setValueAtTime(.12,audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.15);
+    osc.start(); osc.stop(audioCtx.currentTime+.15);
+  }catch(e){}
+}
+function playSuccess(){
+  try{
+    ensureAudio();
+    [523,659,784,1047].forEach((f,i)=>{
+      const o=audioCtx.createOscillator();
+      const g=audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.value=f;
+      g.gain.setValueAtTime(0,audioCtx.currentTime+i*.12);
+      g.gain.linearRampToValueAtTime(.15,audioCtx.currentTime+i*.12+.05);
+      g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+i*.12+.35);
+      o.start(audioCtx.currentTime+i*.12);
+      o.stop(audioCtx.currentTime+i*.12+.35);
+    });
+  }catch(e){}
+}
+
+// ──────────────────────────────────────────────
+// NAVIGATION
+// ──────────────────────────────────────────────
+function next(btn){
+  if(animating||current>=TOTAL-1) return;
+  animating=true;
+  playWarp();
+  boostVal=1.0;
+
+  // Ripple on button
+  if(btn){
+    const r=document.createElement('span');
+    r.className='rpl'; r.style.cssText=`width:${btn.offsetWidth*2}px;height:${btn.offsetWidth*2}px;left:${-btn.offsetWidth/2}px;top:${-btn.offsetWidth/2}px`;
+    btn.appendChild(r); setTimeout(()=>r.remove(),600);
+  }
+
+  // Burst from center
+  burst(window.innerWidth/2,window.innerHeight/2,50);
+
+  // Flash
+  const fl=document.getElementById('flash');
+  fl.classList.add('show');
+  setTimeout(()=>fl.classList.remove('show'),250);
+
+  // Screen rumble
+  document.getElementById('scene').style.transition='opacity .5s,transform .12s';
+  document.getElementById('scene').style.transform='scale(1.015)';
+  setTimeout(()=>document.getElementById('scene').style.transform='scale(1)',130);
+
+  setTimeout(()=>{
+    document.getElementById('s'+current).classList.add('exit');
+    setTimeout(()=>{
+      document.getElementById('s'+current).classList.remove('active','exit');
+      current++;
+      document.getElementById('s'+current).classList.add('active');
+      document.getElementById('step-counter').textContent=String(current+1).padStart(2,'0')+' / 0'+TOTAL;
+      updateDots();
+      animating=false;
+    },300);
+  },150);
+}
+
+function updateDots(){
+  document.querySelectorAll('.dot').forEach((d,i)=>{
+    d.className='dot'+(i===current?' on':'');
+  });
+}
+
+function buildDots(){
+  const p=document.getElementById('progress');
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('div');
+    d.className='dot'+(i===0?' on':'');
+    d.onclick=()=>{
+      if(i>current&&!animating){
+        // jump forward
+        const orig=current;
+        while(current<i-1&&!animating){current++;}
+        next(null);
+      }
+    };
+    p.appendChild(d);
+  }
+}
+
+// ──────────────────────────────────────────────
+// SPEC TOOLTIP
+// ──────────────────────────────────────────────
+function specPop(el,txt){
+  playClick();
+  burst(el.getBoundingClientRect().left+el.offsetWidth/2,el.getBoundingClientRect().top+el.offsetHeight/2,20,['#4fc3f7','#fff']);
+  const tip=document.getElementById('tooltip');
+  const r=el.getBoundingClientRect();
+  tip.style.left=(r.left+r.width/2-130)+'px';
+  tip.style.top=(r.top-60)+'px';
+  document.getElementById('tooltip-txt').textContent=txt;
+  tip.style.opacity='1'; tip.style.transform='translateY(0)';
+  clearTimeout(tip._t);
+  tip._t=setTimeout(()=>{tip.style.opacity='0';tip.style.transform='translateY(6px)';},2500);
+}
+
+// ──────────────────────────────────────────────
+// PURCHASE CTA
+// ──────────────────────────────────────────────
+function comprar(btn){
+  playSuccess();
+  burst(btn.getBoundingClientRect().left+btn.offsetWidth/2,btn.getBoundingClientRect().top+btn.offsetHeight/2,80,['#ffd54f','#fff','#4fc3f7','#a78bfa','#ff6b9d']);
+  boostVal=1.8;
+  btn.disabled=true;
+  btn.innerHTML='⏳ Preparando sua missão…';
+  btn.style.background='linear-gradient(135deg,#ffd54f,#ffb300)';
+  setTimeout(()=>{
+    burst(btn.getBoundingClientRect().left+btn.offsetWidth/2,btn.getBoundingClientRect().top,60,['#00e676','#69f0ae','#fff']);
+    btn.innerHTML='✅ Missão aceita! Bem-vindo ao futuro.';
+    btn.style.background='linear-gradient(135deg,#00e676,#00c853)';
+    btn.style.color='#000';
+  },2000);
+}
+
+// ──────────────────────────────────────────────
+// COUNTDOWN TIMER
+// ──────────────────────────────────────────────
+let timerSec = 1*3600 + 47*60 + 23;
+function tickTimer(){
+  if(timerSec<=0) return;
+  timerSec--;
+  const h=Math.floor(timerSec/3600);
+  const m=Math.floor((timerSec%3600)/60);
+  const s=timerSec%60;
+  const th=document.getElementById('t-h');
+  const tm=document.getElementById('t-m');
+  const ts=document.getElementById('t-s');
+  if(th) th.textContent=String(h).padStart(2,'0');
+  if(tm) tm.textContent=String(m).padStart(2,'0');
+  if(ts){
+    ts.textContent=String(s).padStart(2,'0');
+    if(s===0&&ts){ ts.style.color='#ff6b9d'; setTimeout(()=>{if(ts)ts.style.color='';},800); }
+  }
+}
+setInterval(tickTimer,1000);
+
+// ──────────────────────────────────────────────
+// STOCK COUNTER — random decrement
+// ──────────────────────────────────────────────
+let stockN=23;
+function tickStock(){
+  if(Math.random()>.97&&stockN>5){
+    stockN--;
+    const el=document.getElementById('stock-num');
+    if(el){
+      el.textContent=stockN+' unidades restantes';
+      el.style.color='#ff6b9d';
+      setTimeout(()=>el.style.color='',600);
+    }
+  }
+}
+setInterval(tickStock,3000);
+
+// ──────────────────────────────────────────────
+// CURSOR
+// ──────────────────────────────────────────────
+const cring=document.getElementById('cursor-ring');
+const cdot=document.getElementById('cursor-dot');
+let rx=window.innerWidth/2,ry=window.innerHeight/2;
+document.addEventListener('mousemove',e=>{
+  mouseX=e.clientX; mouseY=e.clientY;
+  cdot.style.left=e.clientX+'px'; cdot.style.top=e.clientY+'px';
+});
+document.addEventListener('mousedown',()=>document.body.classList.add('clicking'));
+document.addEventListener('mouseup',()=>document.body.classList.remove('clicking'));
+document.addEventListener('click',e=>burst(e.clientX,e.clientY,15));
+
+// Smooth cursor ring
+function animateCursor(){
+  rx+=(mouseX-rx)*.12; ry+=(mouseY-ry)*.12;
+  cring.style.left=rx+'px'; cring.style.top=ry+'px';
+  requestAnimationFrame(animateCursor);
+}
+animateCursor();
+
+// ──────────────────────────────────────────────
+// PARALLAX — mouse parallax on scene
+// ──────────────────────────────────────────────
+function updateParallax(){
+  mx+=(mouseX-mx)*.05; my+=(mouseY-my)*.05;
+  const dx=(mx-window.innerWidth/2)/(window.innerWidth/2);
+  const dy=(my-window.innerHeight/2)/(window.innerHeight/2);
+  const scene=document.getElementById('scene');
+  if(scene) scene.style.transform=`perspective(1200px) rotateY(${dx*2}deg) rotateX(${-dy*1.5}deg)`;
+}
+
+// ──────────────────────────────────────────────
+// MAIN LOOP
+// ──────────────────────────────────────────────
+function loop(){
+  time++;
+
+  // Warp speed decay
+  if(boostVal>0){ boostVal=Math.max(0,boostVal-.02); warpSpeed=boostVal; }
+  else warpSpeed*=.94;
+
+  // HUD
+  document.getElementById('warp-val').textContent=warpSpeed.toFixed(2);
+
+  drawBG();
+  drawParticles();
+  updateParallax();
+  if(current===2) drawWatch();
+  if(current===4) drawHeartbeat();
+
+  requestAnimationFrame(loop);
+}
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+resize();
+buildDots();
+window.addEventListener('resize',resize);
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next(null);}
+  if(e.key==='ArrowLeft'&&current>0){
+    // go back (simple version)
+    if(!animating){ animating=true;
+      document.getElementById('s'+current).classList.remove('active');
+      current=Math.max(0,current-1);
+      document.getElementById('s'+current).classList.add('active');
+      updateDots();
+      setTimeout(()=>animating=false,400);
+    }
+  }
+});
+
+// Ambient background boost when idle
+setInterval(()=>{ if(warpSpeed<.05) warpSpeed=.05+Math.random()*.03; },5000);
+
+loop();
+
+// Price counter animation on slide 6
+const priceObs=new MutationObserver(()=>{
+  if(current===6){
+    let n=897;
+    const el=document.getElementById('p-val');
+    if(!el||el._anim) return;
+    el._anim=true;
+    const it=setInterval(()=>{ n-=Math.floor(Math.random()*15+5); if(n<=497){n=497;clearInterval(it);} if(el)el.textContent=n; },40);
+  }
+});
+priceObs.observe(document.getElementById('s6'),{attributes:true,attributeFilter:['class']});
+</script>
+</body>
+</html>
